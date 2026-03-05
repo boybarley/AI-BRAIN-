@@ -41,7 +41,7 @@ User ← [Reply with answer + sources]
 
 ```bash
 # Clone project
-git clone https://github.com/your-repo/ai-brain.git
+git clone https://github.com/boybarley/ai-brain.git
 cd ai-brain
 
 # Edit konfigurasi
