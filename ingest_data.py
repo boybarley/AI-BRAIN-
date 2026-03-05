@@ -1,17 +1,9 @@
 """
-ingest_data.py — Universal Data Ingestion Script
-==================================================
-Memproses file dari folder data/ dan membangun FAISS vector index.
-
-Tipe file yang didukung:
-  - .pdf  → PyPDFLoader
-  - .txt  → TextLoader
-  - .md   → TextLoader
-
+ingest_data.py — Document ingestion pipeline
+Supports: .txt, .md, .pdf, .docx, .csv, .xlsx
 Usage:
-  python ingest_data.py              # Proses semua file di data/
-  python ingest_data.py /path/to/dir  # Proses dari folder custom
-  python ingest_data.py --append      # Append ke index yang sudah ada
+    python ingest_data.py            # Replace mode (default)
+    python ingest_data.py APPEND     # Append to existing index
 """
 
 import os
@@ -19,13 +11,9 @@ import sys
 import logging
 from typing import List
 
+import yaml
 from langchain_core.documents import Document
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_community.vectorstores import FAISS
 
-from core_rag import load_config, create_embeddings
-
-# ─── Logging ─────────────────────────────────────────────────
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
@@ -34,209 +22,173 @@ logger = logging.getLogger(__name__)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# Tipe file yang didukung
-LOADERS = {
-    ".pdf": "pdf",
-    ".txt": "text",
-    ".md": "text",
-}
+
+def load_config() -> dict:
+    with open(os.path.join(BASE_DIR, "config.yaml"), "r", encoding="utf-8") as f:
+        return yaml.safe_load(f)
 
 
-def load_documents_from_directory(data_dir: str) -> List[Document]:
-    """
-    Scan folder dan load semua file yang didukung.
-    Metadata `source` diisi dengan nama file.
-    """
-    full_dir = (
-        data_dir if os.path.isabs(data_dir)
-        else os.path.join(BASE_DIR, data_dir)
-    )
-
-    if not os.path.exists(full_dir):
-        logger.warning(f"Directory not found: {full_dir}")
-        os.makedirs(full_dir, exist_ok=True)
-        logger.info(f"Created directory: {full_dir}")
-        return []
-
+def load_documents(data_dir: str) -> List[Document]:
     documents = []
-    files = sorted(os.listdir(full_dir))
-    supported_count = 0
 
-    logger.info(f"📂 Scanning directory: {full_dir}")
+    if not os.path.exists(data_dir):
+        os.makedirs(data_dir)
+        return documents
 
-    for filename in files:
-        filepath = os.path.join(full_dir, filename)
-        ext = os.path.splitext(filename)[1].lower()
-
-        if ext not in LOADERS:
+    for filename in sorted(os.listdir(data_dir)):
+        filepath = os.path.join(data_dir, filename)
+        if not os.path.isfile(filepath):
             continue
 
-        supported_count += 1
-        loader_type = LOADERS[ext]
+        ext = filename.lower().rsplit(".", 1)[-1] if "." in filename else ""
+
+        # Skip hidden / system files
+        if filename.startswith(".") or ext == "gitkeep":
+            continue
 
         try:
-            if loader_type == "pdf":
-                from langchain_community.document_loaders import PyPDFLoader
-                loader = PyPDFLoader(filepath)
-                docs = loader.load()
-
-                # Set source metadata to filename
-                for doc in docs:
-                    doc.metadata["source"] = filename
-                    doc.metadata["type"] = "pdf"
-                    doc.metadata["page"] = doc.metadata.get("page", 0)
-
-                documents.extend(docs)
-                logger.info(
-                    f"  📄 {filename} — {len(docs)} page(s) loaded"
-                )
-
-            elif loader_type == "text":
-                from langchain_community.document_loaders import TextLoader
-
-                # Try UTF-8 first, then fallback encodings
-                loaded = False
-                for encoding in ("utf-8", "latin-1", "cp1252"):
+            # ── TXT / Markdown ──────────────────────────────
+            if ext in ("txt", "md"):
+                content = None
+                for enc in ("utf-8", "latin-1", "cp1252"):
                     try:
-                        loader = TextLoader(filepath, encoding=encoding)
-                        docs = loader.load()
-
-                        for doc in docs:
-                            doc.metadata["source"] = filename
-                            doc.metadata["type"] = (
-                                "markdown" if ext == ".md" else "text"
-                            )
-
-                        documents.extend(docs)
-                        logger.info(
-                            f"  📝 {filename} — loaded ({encoding})"
-                        )
-                        loaded = True
+                        with open(filepath, "r", encoding=enc) as f:
+                            content = f.read()
+                        logger.info(f"  TXT: {filename} — loaded ({enc})")
                         break
-
                     except UnicodeDecodeError:
                         continue
 
-                if not loaded:
-                    logger.error(
-                        f"  ❌ {filename} — could not decode with any encoding"
-                    )
+                if content is None:
+                    logger.warning(f"  SKIP: {filename} — encoding error")
+                    continue
+
+                documents.append(
+                    Document(page_content=content, metadata={"source": filename})
+                )
+
+            # ── PDF ─────────────────────────────────────────
+            elif ext == "pdf":
+                from pypdf import PdfReader
+
+                reader = PdfReader(filepath)
+                pages = [p.extract_text() or "" for p in reader.pages]
+                content = "\n\n".join(pages).strip()
+
+                if not content:
+                    logger.warning(f"  SKIP: {filename} — no extractable text")
+                    continue
+
+                documents.append(
+                    Document(page_content=content, metadata={"source": filename})
+                )
+                logger.info(f"  PDF: {filename} — {len(reader.pages)} pages")
+
+            # ── DOCX ────────────────────────────────────────
+            elif ext == "docx":
+                from docx import Document as DocxDoc
+
+                doc = DocxDoc(filepath)
+                content = "\n\n".join(
+                    p.text for p in doc.paragraphs if p.text.strip()
+                )
+
+                if not content.strip():
+                    logger.warning(f"  SKIP: {filename} — empty document")
+                    continue
+
+                documents.append(
+                    Document(page_content=content, metadata={"source": filename})
+                )
+                logger.info(f"  DOCX: {filename} — loaded")
+
+            # ── CSV ─────────────────────────────────────────
+            elif ext == "csv":
+                import csv
+
+                with open(filepath, "r", encoding="utf-8") as f:
+                    rows = list(csv.reader(f))
+                content = "\n".join(", ".join(row) for row in rows)
+
+                documents.append(
+                    Document(page_content=content, metadata={"source": filename})
+                )
+                logger.info(f"  CSV: {filename} — {len(rows)} rows")
+
+            # ── XLSX ────────────────────────────────────────
+            elif ext == "xlsx":
+                from openpyxl import load_workbook
+
+                wb = load_workbook(filepath, read_only=True)
+                parts = []
+                for sheet in wb.sheetnames:
+                    for row in wb[sheet].iter_rows(values_only=True):
+                        vals = [str(c) if c is not None else "" for c in row]
+                        parts.append(", ".join(vals))
+                content = "\n".join(parts)
+
+                documents.append(
+                    Document(page_content=content, metadata={"source": filename})
+                )
+                logger.info(f"  XLSX: {filename} — {len(parts)} rows")
+
+            else:
+                logger.warning(f"  SKIP: {filename} — unsupported (.{ext})")
 
         except Exception as e:
-            logger.error(f"  ❌ {filename} — failed to load: {e}")
-
-    logger.info(
-        f"\n📊 Summary: {supported_count} supported file(s) found, "
-        f"{len(documents)} document(s) loaded"
-    )
+            logger.error(f"  ERROR: {filename} — {e}")
 
     return documents
 
 
-def ingest(
-    data_dir: str = "data",
-    append: bool = False,
-    config: dict = None,
-):
-    """
-    Pipeline utama untuk ingest data.
-    
-    Args:
-        data_dir: Folder berisi file data
-        append:   True = merge ke index yang ada; False = replace
-        config:   Config dictionary (auto-load jika None)
-    """
-    if config is None:
-        config = load_config()
+def main():
+    config = load_config()
+    data_dir = os.path.join(BASE_DIR, "data")
+    vs_path = os.path.join(BASE_DIR, config.get("vector_store_path", "db/faiss_index"))
 
-    logger.info("🚀 Starting data ingestion pipeline...")
-    logger.info(f"   Mode: {'APPEND' if append else 'REPLACE'}")
+    mode = sys.argv[1].upper() if len(sys.argv) > 1 else "REPLACE"
+    logger.info(f"Starting ingestion (mode={mode})...")
 
-    # ── Step 1: Load Documents ───────────────────────────────
-    documents = load_documents_from_directory(data_dir)
-
+    # Load documents
+    documents = load_documents(data_dir)
     if not documents:
-        logger.warning(
-            "⚠️  No documents found. Place PDF/TXT/MD files in "
-            f"the '{data_dir}/' folder."
-        )
+        logger.warning("No documents found. Place files in data/ folder.")
         return
 
-    # ── Step 2: Split Into Chunks ────────────────────────────
-    chunk_size = config.get("chunk_size", 1000)
-    chunk_overlap = config.get("chunk_overlap", 200)
+    logger.info(f"Loaded {len(documents)} document(s)")
+
+    # Split into chunks
+    from langchain.text_splitter import RecursiveCharacterTextSplitter
 
     splitter = RecursiveCharacterTextSplitter(
-        chunk_size=chunk_size,
-        chunk_overlap=chunk_overlap,
+        chunk_size=config.get("chunk_size", 1000),
+        chunk_overlap=config.get("chunk_overlap", 200),
         separators=["\n\n", "\n", ". ", " ", ""],
     )
-
     chunks = splitter.split_documents(documents)
+    logger.info(f"Split into {len(chunks)} chunks")
 
-    logger.info(
-        f"✂️  Split {len(documents)} document(s) → {len(chunks)} chunks "
-        f"(size={chunk_size}, overlap={chunk_overlap})"
-    )
+    # Create embeddings & vector store
+    from core_rag import create_embeddings
 
-    # ── Step 3: Create Embeddings & FAISS Index ──────────────
-    logger.info("🔄 Creating embeddings (this may take a while)...")
     embeddings = create_embeddings(config)
 
-    vs_path = config.get("vector_store_path", "db/faiss_index")
-    full_path = os.path.join(BASE_DIR, vs_path)
-    os.makedirs(os.path.dirname(full_path), exist_ok=True)
+    from langchain_community.vectorstores import FAISS
 
-    if append and os.path.exists(full_path):
-        # Append mode: merge with existing
-        logger.info("🔄 Appending to existing FAISS index...")
-        existing = FAISS.load_local(
-            full_path, embeddings,
-            allow_dangerous_deserialization=True,
+    if mode == "APPEND" and os.path.exists(vs_path):
+        logger.info("Appending to existing index...")
+        vector_store = FAISS.load_local(
+            vs_path, embeddings, allow_dangerous_deserialization=True
         )
-        new_store = FAISS.from_documents(chunks, embeddings)
-        existing.merge_from(new_store)
-        existing.save_local(full_path)
-
-        logger.info(
-            f"✅ Index updated! Total vectors: {existing.index.ntotal}"
-        )
+        vector_store.add_documents(chunks)
     else:
-        # Replace mode: create fresh index
-        logger.info("🆕 Creating new FAISS index...")
-        store = FAISS.from_documents(chunks, embeddings)
-        store.save_local(full_path)
+        vector_store = FAISS.from_documents(chunks, embeddings)
 
-        logger.info(
-            f"✅ Index created! Total vectors: {store.index.ntotal}"
-        )
+    os.makedirs(os.path.dirname(vs_path), exist_ok=True)
+    vector_store.save_local(vs_path)
+    logger.info(f"Created! Total: {vector_store.index.ntotal} vectors")
+    logger.info(f"Saved to: {vs_path}")
 
-    logger.info(f"📍 Saved to: {full_path}")
-    logger.info(
-        "\n💡 Tip: Restart services to load new data:\n"
-        "   sudo systemctl restart bot-api bot-worker\n"
-        "   — or call POST /api/v1/reload"
-    )
-
-
-# ══════════════════════════════════════════════════════════════
-#  CLI INTERFACE
-# ══════════════════════════════════════════════════════════════
 
 if __name__ == "__main__":
-    import argparse
-
-    parser = argparse.ArgumentParser(
-        description="Universal Data Ingestor for AI Brain",
-    )
-    parser.add_argument(
-        "data_dir", nargs="?", default="data",
-        help="Directory containing data files (default: data/)",
-    )
-    parser.add_argument(
-        "--append", action="store_true",
-        help="Append to existing FAISS index instead of replacing",
-    )
-
-    args = parser.parse_args()
-    ingest(data_dir=args.data_dir, append=args.append)
+    main()
