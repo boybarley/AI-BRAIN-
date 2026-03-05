@@ -1,0 +1,56 @@
+# ╔══════════════════════════════════════════════════════════════╗
+# ║              AI BRAIN - CENTRAL CONFIGURATION                ║
+# ╚══════════════════════════════════════════════════════════════╝
+
+# ─── Embedding Model Configuration ───────────────────────────
+embedding_provider: "ollama"          # ollama | openai | huggingface
+embedding_model: "nomic-embed-text"   # Model name
+embedding_api_key: ""                 # Required for openai/huggingface
+ollama_base_url: "http://localhost:11434"
+
+# ─── LLM Configuration ──────────────────────────────────────
+llm_provider: "ollama"                # ollama | openai | openrouter | groq | minimax
+llm_model: "llama3"                   # Model name
+llm_base_url: "http://localhost:11434"  # Ollama default; change for cloud
+llm_api_key: ""                       # Required for cloud providers
+llm_temperature: 0.3
+llm_max_tokens: 1024
+
+# Provider-specific base URLs (uncomment as needed):
+# OpenRouter:  https://openrouter.ai/api/v1
+# Groq:        https://api.groq.com/openai/v1
+# Minimax:     https://api.minimax.chat/v1
+# OpenAI:      https://api.openai.com/v1
+
+# ─── Vector Store Configuration ──────────────────────────────
+vector_store_path: "db/faiss_index"
+
+# ─── RAG Pipeline Configuration ─────────────────────────────
+retrieval_top_k: 10                   # Docs to retrieve from FAISS
+rerank_top_k: 3                       # Docs to keep after re-ranking
+use_reranker: true                    # Enable cross-encoder re-ranker
+reranker_model: "cross-encoder/ms-marco-MiniLM-L-6-v2"
+
+# ─── Text Splitting ─────────────────────────────────────────
+chunk_size: 1000
+chunk_overlap: 200
+
+# ─── Celery / Redis ─────────────────────────────────────────
+redis_url: "redis://localhost:6379/0"
+
+# ─── Platform: Facebook Messenger ───────────────────────────
+messenger_verify_token: "YOUR_SECRET_VERIFY_TOKEN"
+messenger_page_access_token: "YOUR_PAGE_ACCESS_TOKEN"
+messenger_app_secret: ""              # Optional: for signature verification
+
+# ─── Platform: Telegram ─────────────────────────────────────
+telegram_bot_token: "YOUR_TELEGRAM_BOT_TOKEN"
+
+# ─── Platform: WhatsApp Business API ────────────────────────
+whatsapp_verify_token: "YOUR_WHATSAPP_VERIFY_TOKEN"
+whatsapp_api_token: "YOUR_WHATSAPP_API_TOKEN"
+whatsapp_phone_number_id: "YOUR_PHONE_NUMBER_ID"
+
+# ─── Server ─────────────────────────────────────────────────
+server_host: "0.0.0.0"
+server_port: 5000
