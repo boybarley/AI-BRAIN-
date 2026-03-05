@@ -1,300 +1,438 @@
-# 🧠 AI Brain — Multi-Platform RAG Bot
+<div align="center">
 
-> Sistem "Otak AI" berbasis **RAG (Retrieval-Augmented Generation)** yang modular
-> dan berperforma tinggi. Satu otak AI, banyak platform.
+# 🧠 AI Brain
 
-## 📐 Arsitektur
-User → [Messenger/Telegram/WhatsApp]
-↓
-Cloudflare Tunnel
-↓
-FastAPI Server (api_server.py)
-├── /webhooks/{platform} → Parse & verify
-└── /api/v1/query → Direct API access
-↓
-Redis Queue (Broker)
-↓
-Celery Worker (tasks.py)
-↓
-Core RAG Engine (core_rag.py)
-├── FAISS Similarity Search (10 docs)
-├── Cross-Encoder Re-ranking (→ 3 docs)
-├── Prompt Engineering + Source Citation
-└── LLM Generation (Ollama / Cloud)
-↓
-Platform Adapter (platform_adapters.py)
-↓
-User ← [Reply with answer + sources]
+**RAG-Powered AI Assistant with Multi-Channel Integration**
 
+[![Python 3.10+](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://python.org)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.104+-green.svg)](https://fastapi.tiangolo.com)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
+*Upload your documents → AI answers questions based on your data*
+*Supports: Telegram · WhatsApp · Messenger · REST API*
 
-## ⚡ Quick Start
-
-### Prerequisites
-
-- **OS:** Ubuntu 22.04 / 24.04 LTS (dalam Proxmox VM)
-- **RAM:** Minimum 4GB (8GB+ recommended untuk model lokal)
-- **Python:** 3.10+
-- **Ollama** (untuk model lokal) atau API key cloud provider
-
-### Step 1: Clone & Install
-
-```bash
-# Clone project
-git clone https://github.com/boybarley/ai-brain.git
-cd ai-brain
-
-# Edit konfigurasi
-cp config.yaml.example config.yaml  # atau edit langsung
-nano config.yaml
-
-# Jalankan installer
-chmod +x install.sh
-./install.sh
-Step 2: Setup Ollama (Model Lokal)
-
-# Install Ollama
-curl -fsSL https://ollama.com/install.sh | sh
-
-# Pull model LLM
-ollama pull llama3
-# atau model yang lebih kecil:
-# ollama pull mistral
-# ollama pull phi3
-
-# Pull model embedding
-ollama pull nomic-embed-text
-# atau alternatif:
-# ollama pull mxbai-embed-large
-
-# Verifikasi
-ollama list
-Step 3: Siapkan Data
-
-# Taruh file PDF/TXT/MD di folder data/
-cp /path/to/your/documents/*.pdf data/
-cp /path/to/your/docs/*.txt data/
-
-# Aktifkan virtual environment
-source venv/bin/activate
-
-# Ingest data (buat FAISS index)
-python ingest_data.py
-
-# (Opsional) Crawl website
-python crawl.py https://docs.example.com --max-pages 30
-Step 4: Setup Cloudflare Tunnel
-
-# Install cloudflared
-curl -fsSL https://pkg.cloudflare.com/cloudflare-main.gpg \
-  | sudo tee /usr/share/keyrings/cloudflare-main.gpg > /dev/null
-echo "deb [signed-by=/usr/share/keyrings/cloudflare-main.gpg] \
-  https://pkg.cloudflare.com/cloudflared $(lsb_release -cs) main" \
-  | sudo tee /etc/apt/sources.list.d/cloudflared.list
-sudo apt-get update && sudo apt-get install cloudflared
-
-# Login ke Cloudflare
-cloudflared tunnel login
-
-# Buat tunnel
-cloudflared tunnel create ai-brain
-
-# Konfigurasi tunnel
-cat > ~/.cloudflared/config.yml <<EOF
-tunnel: <TUNNEL_ID>
-credentials-file: /home/$USER/.cloudflared/<TUNNEL_ID>.json
-
-ingress:
-  - hostname: bot.yourdomain.com
-    service: http://localhost:5000
-  - service: http_status:404
-EOF
-
-# Buat DNS record
-cloudflared tunnel route dns ai-brain bot.yourdomain.com
-
-# Jalankan sebagai service
-sudo cloudflared service install
-sudo systemctl enable cloudflared
-sudo systemctl start cloudflared
-Sekarang https://bot.yourdomain.com → http://localhost:5000
-
-Step 5: Konfigurasi Platform
-Facebook Messenger
-Buka Meta for Developers
-Buat App → pilih "Business" type
-Tambahkan product "Messenger"
-Di Messenger Settings:
-Generate Page Access Token → masukkan ke config.yaml
-Setup Webhook:
-Callback URL: https://bot.yourdomain.com/webhooks/messenger
-Verify Token: sama dengan messenger_verify_token di config
-Subscribe to: messages, messaging_postbacks
-(Opsional) Masukkan App Secret ke messenger_app_secret untuk verifikasi signature
-Telegram
-Chat dengan @BotFather di Telegram
-Kirim /newbot → ikuti instruksi → dapatkan Bot Token
-Masukkan token ke telegram_bot_token di config.yaml
-Set webhook:
-
-curl -X POST "https://api.telegram.org/bot<YOUR_TOKEN>/setWebhook" \
-  -H "Content-Type: application/json" \
-  -d '{"url": "https://bot.yourdomain.com/webhooks/telegram"}'
-WhatsApp Business API
-Buka Meta for Developers
-Buat App → pilih "Business" type
-Tambahkan product "WhatsApp"
-Di WhatsApp Settings:
-Catat Phone Number ID dan Permanent Token
-Setup Webhook:
-Callback URL: https://bot.yourdomain.com/webhooks/whatsapp
-Verify Token: sama dengan whatsapp_verify_token di config
-Subscribe to: messages
-Masukkan kredensial ke config.yaml
-⚙️ Konfigurasi Cloud LLM Providers
-OpenRouter
-
-llm_provider: "openrouter"
-llm_model: "meta-llama/llama-3-8b-instruct"
-llm_base_url: "https://openrouter.ai/api/v1"
-llm_api_key: "sk-or-v1-xxxxx"
-Groq
-
-llm_provider: "groq"
-llm_model: "llama3-8b-8192"
-llm_base_url: "https://api.groq.com/openai/v1"
-llm_api_key: "gsk_xxxxx"
-OpenAI
-
-llm_provider: "openai"
-llm_model: "gpt-4o-mini"
-llm_base_url: "https://api.openai.com/v1"
-llm_api_key: "sk-xxxxx"
-🛠️ Manajemen Service
-
-# Start/Stop/Restart
-sudo systemctl start   bot-api bot-worker
-sudo systemctl stop    bot-api bot-worker
-sudo systemctl restart bot-api bot-worker
-
-# Cek status
-sudo systemctl status bot-api
-sudo systemctl status bot-worker
-
-# Lihat log real-time
-tail -f logs/api.log
-tail -f logs/worker.log
-tail -f logs/api-error.log
-📡 API Reference
-Swagger UI tersedia di: http://localhost:5000/docs
-
-Submit Query
-
-curl -X POST http://localhost:5000/api/v1/query \
-  -H "Content-Type: application/json" \
-  -d '{"query": "Apa itu machine learning?", "conversation_id": "test"}'
-
-# Response (202):
-# {"status":"accepted","task_id":"abc123","message":"Query submitted"}
-Check Task Status
-
-curl http://localhost:5000/api/v1/task/abc123
-
-# Response (completed):
-# {
-#   "task_id": "abc123",
-#   "status": "success",
-#   "result": {
-#     "answer": "Machine learning adalah...",
-#     "sources": ["ml-intro.pdf", "https://example.com/ml"]
-#   }
-# }
-Reload Engine Cache
-
-curl -X POST http://localhost:5000/api/v1/reload
-Health Check
-
-curl http://localhost:5000/health
-📂 Menambah Data Baru
-
-source venv/bin/activate
-
-# Tambah dari file
-cp new-document.pdf data/
-python ingest_data.py            # Replace semua
-python ingest_data.py --append   # Append ke index yang ada
-
-# Tambah dari website
-python crawl.py https://new-site.com --max-pages 20
-
-# Reload tanpa restart (atau restart service)
-curl -X POST http://localhost:5000/api/v1/reload
-sudo systemctl restart bot-worker
-🔍 Troubleshooting
-Masalah	Solusi
-Ollama tidak terdeteksi	Pastikan ollama serve berjalan dan model sudah di-pull
-Redis connection refused	sudo systemctl start redis-server
-Webhook timeout (Messenger)	Pastikan Celery worker berjalan: sudo systemctl status bot-worker
-FAISS index not found	Jalankan python ingest_data.py
-Import error	Pastikan venv aktif: source venv/bin/activate
-Permission denied (systemd)	Check user di service file, pastikan match
-📜 License
-MIT License
-
-
+</div>
 
 ---
 
-## Ringkasan Alur Kerja Sistem
-┌─────────────────────────────────────────────────────────────┐
-│ ALUR PEMROSESAN PESAN │
-├─────────────────────────────────────────────────────────────┤
-│ │
-│ 1. User kirim pesan di Telegram/Messenger/WhatsApp │
-│ │ │
-│ 2. Platform kirim webhook ke FastAPI │
-│ POST /webhooks/{platform} │
-│ │ │
-│ 3. FastAPI: │
-│ ├── Verify token/signature │
-│ ├── Parse payload → extract text & user_id │
-│ ├── Submit Celery task (< 10ms) │
-│ └── Return 200 OK immediately │
-│ │ │
-│ 4. Redis menyimpan task di queue │
-│ │ │
-│ 5. Celery Worker mengambil task: │
-│ ├── core_rag.process_query() │
-│ │ ├── FAISS similarity_search (k=10) │
-│ │ ├── Cross-Encoder re-rank → top 3 │
-│ │ ├── Build context + source metadata │
-│ │ ├── ChatPromptTemplate + System Prompt │
-│ │ └── LLM generate answer │
-│ │ │
-│ └── platform_adapters.send_{platform}_reply() │
-│ ├── Format answer + sources │
-│ ├── Split if exceeds char limit │
-│ └── POST to platform API │
-│ │ │
-│ 6. User menerima jawaban + sumber referensi │
-│ │
-└─────────────────────────────────────────────────────────────┘
+## ⚡ Quick Install (One-Liner)
 
+```bash
+wget -O install.sh https://raw.githubusercontent.com/boybarley/ai-brain-/main/install.sh && chmod +x install.sh && sudo bash install.sh
+```
 
+That's it. The installer will:
+- ✅ Install all dependencies (Python, Redis, Ollama)
+- ✅ Clone this repository
+- ✅ Setup Python virtual environment
+- ✅ Download embedding model
+- ✅ Configure systemd services
+- ✅ Start everything
 
-**Key design decisions:**
+---
 
-| Komponen | Pilihan | Alasan |
-|----------|---------|--------|
-| API Server | **FastAPI** | Async native, auto Swagger docs, type validation |
-| Task Queue | **Celery + Redis** | Mencegah webhook timeout, retry otomatis, scalable |
-| Vector DB | **FAISS (CPU)** | Ringan, cepat, tanpa external service |
-| Re-ranker | **Cross-Encoder** | Meningkatkan relevansi $\sim$30-50% vs similarity saja |
-| Config | **YAML** | Mudah dibaca, satu file untuk semua setting |
-| Tunnel | **Cloudflare** | Gratis, HTTPS otomatis, stabil |
+## 🏗️ Architecture
 
-> **Catatan:** Setelah setiap perubahan `config.yaml` atau ingestion data baru, restart services:
-> ```bash
-> sudo systemctl restart bot-api bot-worker
-> ```
-> Atau gunakan endpoint `POST /api/v1/reload` untuk reload cache tanpa restart penuh (hanya berlaku untuk worker yang idle).
+```
+┌─────────────────────────────────────────────────────────┐
+│                      Your Server                         │
+│                                                          │
+│   ┌──────────┐    ┌────────┐    ┌──────────────────┐   │
+│   │ FastAPI   │───▶│ Redis  │───▶│  Celery Worker   │   │
+│   │ :5000     │    │ :6379  │    │  (task queue)    │   │
+│   └──────────┘    └────────┘    └────────┬─────────┘   │
+│        │                                  │             │
+│   ┌────▼─────┐    ┌──────────────────────▼──────────┐  │
+│   │ Webhooks │    │        core_rag.py               │  │
+│   │ TG/WA/FB │    │  ┌──────────┐  ┌─────────────┐  │  │
+│   └──────────┘    │  │  FAISS   │  │  Build       │  │  │
+│                   │  │  Search  │  │  Prompt      │  │  │
+│   ┌───────────┐   │  └──────────┘  └──────┬──────┘  │  │
+│   │  Ollama   │◀──│    Embedding          │         │  │
+│   │  (embed)  │   └───────────────────────┼─────────┘  │
+│   └───────────┘                           │             │
+└───────────────────────────────────────────┼─────────────┘
+                                            │ API
+                                  ┌─────────▼──────────┐
+                                  │   LLM Provider     │
+                                  │ OpenRouter / OpenAI │
+                                  │ Groq / Ollama      │
+                                  └────────────────────┘
+```
+
+---
+
+## 📋 Requirements
+
+| Component | Minimum |
+|-----------|---------|
+| OS | Ubuntu 20.04 / 22.04 |
+| RAM | **2 GB** (with cloud LLM) or **8 GB** (with local Ollama LLM) |
+| Disk | 5 GB free |
+| Python | 3.10+ |
+
+---
+
+## 🔧 Manual Installation
+
+<details>
+<summary>Click to expand manual steps</summary>
+
+```bash
+# 1. System dependencies
+sudo apt update && sudo apt install -y python3 python3-pip python3-venv redis-server git curl
+
+# 2. Install Ollama
+curl -fsSL https://ollama.com/install.sh | sh
+
+# 3. Clone repo
+git clone https://github.com/boybarley/ai-brain-.git /root/ai-brain
+cd /root/ai-brain
+
+# 4. Python setup
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+
+# 5. Download embedding model
+ollama pull nomic-embed-text
+
+# 6. Configure
+cp config.yaml.example config.yaml
+nano config.yaml  # Set your LLM API key
+
+# 7. Ingest sample data
+python ingest_data.py
+
+# 8. Start services
+uvicorn api_server:app --host 0.0.0.0 --port 5000 &
+celery -A tasks worker --loglevel=info --concurrency=1 --pool=solo &
+```
+
+</details>
+
+---
+
+## ⚙️ Configuration
+
+Edit `config.yaml` to configure your LLM provider:
+
+### OpenRouter (Recommended — Low RAM)
+
+```yaml
+llm_provider: "openrouter"
+llm_model: "google/gemini-2.0-flash-001"
+llm_base_url: "https://openrouter.ai/api/v1"
+llm_api_key: "sk-or-v1-your-key-here"
+```
+
+Get your API key at [openrouter.ai/keys](https://openrouter.ai/keys)
+
+### Available Models on OpenRouter
+
+| Model | Cost | Speed | Quality |
+|-------|------|-------|---------|
+| `google/gemini-2.0-flash-001` | 💰 | ⚡⚡⚡ | ⭐⭐⭐⭐ |
+| `deepseek/deepseek-chat-v3-0324` | 💰 | ⚡⚡ | ⭐⭐⭐⭐⭐ |
+| `openai/gpt-4o-mini` | 💰💰 | ⚡⚡⚡ | ⭐⭐⭐⭐ |
+| `anthropic/claude-3.5-sonnet` | 💰💰💰 | ⚡⚡ | ⭐⭐⭐⭐⭐ |
+| `meta-llama/llama-3.1-8b-instruct` | 💰 | ⚡⚡⚡ | ⭐⭐⭐ |
+
+<details>
+<summary>Other Providers</summary>
+
+#### OpenAI Direct
+```yaml
+llm_provider: "openai"
+llm_model: "gpt-4o-mini"
+llm_base_url: "https://api.openai.com/v1"
+llm_api_key: "sk-your-key"
+```
+
+#### Groq (Fast & Free Tier)
+```yaml
+llm_provider: "groq"
+llm_model: "llama-3.1-8b-instant"
+llm_base_url: "https://api.groq.com/openai/v1"
+llm_api_key: "gsk_your-key"
+```
+
+#### Ollama (Local — Requires 8GB+ RAM)
+```yaml
+llm_provider: "ollama"
+llm_model: "llama3"
+llm_base_url: "http://localhost:11434"
+llm_api_key: ""
+```
+
+</details>
+
+After changing config:
+```bash
+sudo systemctl restart bot-api bot-worker
+```
+
+---
+
+## 📄 Adding Your Data
+
+### Method 1: Upload Documents
+
+Place files in the `data/` folder:
+
+```bash
+# Copy files
+cp your-document.pdf /root/ai-brain/data/
+cp knowledge-base.txt /root/ai-brain/data/
+cp data.xlsx /root/ai-brain/data/
+
+# Ingest into vector database
+cd /root/ai-brain && source venv/bin/activate
+python ingest_data.py
+```
+
+Supported formats: `.txt` `.md` `.pdf` `.docx` `.csv` `.xlsx`
+
+### Method 2: Crawl a Website
+
+```bash
+cd /root/ai-brain && source venv/bin/activate
+
+# Basic crawl
+python crawl.py https://yourcompany.com
+
+# Advanced options
+python crawl.py https://yourcompany.com --depth 3 --max-pages 100
+
+# Then ingest crawled content
+python ingest_data.py
+```
+
+### Method 3: Append New Data (Keep Existing)
+
+```bash
+# Add new files to data/, then:
+python ingest_data.py APPEND
+```
+
+### Reload After Ingestion
+
+```bash
+# Restart to load new vectors
+sudo systemctl restart bot-api bot-worker
+
+# Or hot-reload via API
+curl -X POST http://localhost:5000/api/v1/reload
+```
+
+---
+
+## 🚀 API Reference
+
+### Health Check
+
+```bash
+curl http://localhost:5000/health
+```
+
+### Submit Query (Async)
+
+```bash
+curl -X POST http://localhost:5000/api/v1/query \
+  -H "Content-Type: application/json" \
+  -d '{"query": "What is your refund policy?"}'
+```
+
+Response:
+```json
+{
+  "status": "accepted",
+  "task_id": "abc-123-def",
+  "message": "Query submitted for processing"
+}
+```
+
+### Get Result
+
+```bash
+curl http://localhost:5000/api/v1/task/abc-123-def
+```
+
+Response:
+```json
+{
+  "task_id": "abc-123-def",
+  "status": "success",
+  "result": {
+    "answer": "Our refund policy allows...",
+    "sources": ["faq.pdf", "policy.txt"],
+    "conversation_id": null
+  }
+}
+```
+
+### Sync Query (Testing)
+
+```bash
+curl -X POST http://localhost:5000/api/v1/query/sync \
+  -H "Content-Type: application/json" \
+  -d '{"query": "Your question here"}'
+```
+
+### Interactive Docs
+
+Open `http://your-server:5000/docs` for Swagger UI.
+
+---
+
+## 💬 Channel Integration
+
+### Telegram Bot
+
+1. Create bot via [@BotFather](https://t.me/BotFather)
+2. Copy the token
+3. Edit `config.yaml`:
+   ```yaml
+   telegram_bot_token: "123456:ABC-DEF..."
+   ```
+4. Set webhook:
+   ```bash
+   curl "https://api.telegram.org/bot<TOKEN>/setWebhook?url=https://yourdomain.com/webhook/telegram"
+   ```
+
+### WhatsApp Business
+
+1. Setup at [Meta Business Suite](https://business.facebook.com)
+2. Edit `config.yaml`:
+   ```yaml
+   whatsapp_verify_token: "your-verify-token"
+   whatsapp_api_token: "your-api-token"
+   whatsapp_phone_number_id: "your-phone-id"
+   ```
+3. Set webhook URL: `https://yourdomain.com/webhook/whatsapp`
+
+### Facebook Messenger
+
+1. Create app at [Meta Developers](https://developers.facebook.com)
+2. Edit `config.yaml`:
+   ```yaml
+   messenger_verify_token: "your-verify-token"
+   messenger_page_access_token: "your-page-token"
+   ```
+3. Set webhook URL: `https://yourdomain.com/webhook/messenger`
+
+> **Note:** Webhooks require HTTPS. Use Nginx + Certbot for SSL.
+
+---
+
+## 🛠️ Management Commands
+
+```bash
+# Check service status
+sudo systemctl status bot-api bot-worker
+
+# View logs
+tail -f /root/ai-brain/logs/api.log
+tail -f /root/ai-brain/logs/worker.log
+
+# Restart services
+sudo systemctl restart bot-api bot-worker
+
+# Re-ingest all data
+cd /root/ai-brain && source venv/bin/activate
+rm -rf db/faiss_index
+python ingest_data.py
+sudo systemctl restart bot-api bot-worker
+```
+
+---
+
+## 🐛 Troubleshooting
+
+<details>
+<summary><b>Task stuck in "started" or "pending"</b></summary>
+
+**Cause:** Worker crash (usually OOM) or LLM timeout.
+
+```bash
+# Check worker log
+tail -50 /root/ai-brain/logs/worker-error.log
+
+# Check RAM
+free -h
+
+# Fix: Reduce concurrency or switch to cloud LLM
+sudo systemctl restart bot-worker
+```
+</details>
+
+<details>
+<summary><b>Empty curl response</b></summary>
+
+**Cause:** API server not ready yet.
+
+```bash
+# Wait and retry
+sleep 5
+curl http://localhost:5000/health
+
+# Or check logs
+tail -20 /root/ai-brain/logs/api-error.log
+```
+</details>
+
+<details>
+<summary><b>"No documents found" on ingest</b></summary>
+
+**Cause:** `data/` folder is empty.
+
+```bash
+ls -la /root/ai-brain/data/
+# Add your files, then re-run:
+python ingest_data.py
+```
+</details>
+
+<details>
+<summary><b>Ollama connection refused</b></summary>
+
+```bash
+sudo systemctl start ollama
+sudo systemctl status ollama
+ollama list   # Should show nomic-embed-text
+```
+</details>
+
+---
+
+## 📁 Project Structure
+
+```
+ai-brain/
+├── install.sh              # One-click installer
+├── config.yaml.example     # Configuration template
+├── config.yaml             # Your config (git-ignored)
+├── requirements.txt        # Python dependencies
+├── api_server.py           # FastAPI server + webhooks
+├── core_rag.py             # RAG engine (search + LLM)
+├── tasks.py                # Celery async tasks
+├── ingest_data.py          # Document ingestion
+├── crawl.py                # Website crawler
+├── data/                   # Your documents (PDF, TXT, etc.)
+├── db/                     # FAISS vector index
+└── logs/                   # Application logs
+```
+
+---
+
+## 📄 License
+
+MIT License — free for personal and commercial use.
+
+---
+
+<div align="center">
+
+**Built with ❤️ by [boybarley](https://github.com/boybarley)**
+
+</div>
