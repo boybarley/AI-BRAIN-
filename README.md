@@ -433,6 +433,6 @@ MIT License — free for personal and commercial use.
 
 <div align="center">
 
-**Built with ❤️ by [boybarley](https://github.com/boybarley) or https://boybarley.com **
+**Built with ❤️ by [boybarley](https://boybarley.com) **
 
 </div>
