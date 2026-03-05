@@ -1,0 +1,53 @@
+# ═══════════════════════════════════════════════════════════
+#  AI Brain — Configuration
+#  Copy to config.yaml and edit values below
+# ═══════════════════════════════════════════════════════════
+
+# ─── Embedding (Ollama local — low RAM usage) ──────────────
+embedding_provider: "ollama"              # ollama | openai | huggingface
+embedding_model: "nomic-embed-text"
+embedding_api_key: ""
+ollama_base_url: "http://localhost:11434"
+
+# ─── LLM Provider ─────────────────────────────────────────
+# Recommended: OpenRouter (cloud) for servers with < 8GB RAM
+# Get your key at: https://openrouter.ai/keys
+llm_provider: "openrouter"               # ollama | openrouter | openai | groq
+llm_model: "google/gemini-2.0-flash-001" # see README for model options
+llm_base_url: "https://openrouter.ai/api/v1"
+llm_api_key: "YOUR_OPENROUTER_API_KEY"
+llm_temperature: 0.3
+llm_max_tokens: 1024
+
+# ─── Vector Store ──────────────────────────────────────────
+vector_store_path: "db/faiss_index"
+
+# ─── RAG Pipeline ─────────────────────────────────────────
+retrieval_top_k: 5                        # docs to retrieve from FAISS
+rerank_top_k: 3                           # docs after re-ranking
+use_reranker: false                       # set true if RAM > 6GB
+reranker_model: "cross-encoder/ms-marco-MiniLM-L-6-v2"
+
+# ─── Text Splitting ───────────────────────────────────────
+chunk_size: 1000
+chunk_overlap: 200
+
+# ─── Celery / Redis ───────────────────────────────────────
+redis_url: "redis://localhost:6379/0"
+
+# ─── Facebook Messenger ───────────────────────────────────
+messenger_verify_token: "YOUR_VERIFY_TOKEN"
+messenger_page_access_token: "YOUR_PAGE_ACCESS_TOKEN"
+messenger_app_secret: ""
+
+# ─── Telegram Bot ─────────────────────────────────────────
+telegram_bot_token: "YOUR_TELEGRAM_BOT_TOKEN"
+
+# ─── WhatsApp Business ────────────────────────────────────
+whatsapp_verify_token: "YOUR_WHATSAPP_VERIFY_TOKEN"
+whatsapp_api_token: "YOUR_WHATSAPP_API_TOKEN"
+whatsapp_phone_number_id: "YOUR_PHONE_NUMBER_ID"
+
+# ─── Server ───────────────────────────────────────────────
+server_host: "0.0.0.0"
+server_port: 5000
