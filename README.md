@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🧠 AI Brain
+# 🧠 AI Brain by Boy Barley
 
 **RAG-Powered AI Assistant with Multi-Channel Integration**
 
@@ -433,6 +433,6 @@ MIT License — free for personal and commercial use.
 
 <div align="center">
 
-**Built with ❤️ by [boybarley](https://github.com/boybarley)**
+**Built with ❤️ by [boybarley](https://github.com/boybarley) or https://boybarley.com **
 
 </div>
