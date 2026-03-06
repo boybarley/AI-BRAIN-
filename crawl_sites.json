@@ -1,0 +1,65 @@
+[
+  {
+    "name": "https://membersbwk.baliwithkidz.com/nanny.php",
+    "url": "https://membersbwk.baliwithkidz.com/nanny.php",
+    "prefix": "bwk_nanny",
+    "category": "nanny",
+    "enabled": true
+  },
+  {
+    "name": "BWK Driver",
+    "url": "https://membersbwk.baliwithkidz.com/car.php",
+    "prefix": "bwk_driver",
+    "category": "driver",
+    "enabled": true
+  },
+  {
+    "name": "BWK Villa",
+    "url": "https://membersbwk.baliwithkidz.com/villa.php",
+    "prefix": "bwk_villa",
+    "category": "villa",
+    "enabled": true
+  },
+  {
+    "name": "BWK Activities",
+    "url": "https://membersbwk.baliwithkidz.com/activities.php",
+    "prefix": "bwk_activity",
+    "category": "activities",
+    "enabled": true
+  },
+  {
+    "name": "BWK Medical",
+    "url": "https://membersbwk.baliwithkidz.com/medical.php",
+    "prefix": "bwk_medical",
+    "category": "medical",
+    "enabled": true
+  },
+  {
+    "name": "BWK School",
+    "url": "https://membersbwk.baliwithkidz.com/school.php",
+    "prefix": "bwk_school",
+    "category": "school",
+    "enabled": true
+  },
+  {
+    "name": "BWK Restaurant",
+    "url": "https://membersbwk.baliwithkidz.com/restaurant.php",
+    "prefix": "bwk_restaurant",
+    "category": "restaurant",
+    "enabled": true
+  },
+  {
+    "name": "BWK Playground",
+    "url": "https://membersbwk.baliwithkidz.com/playground.php",
+    "prefix": "bwk_playground",
+    "category": "playground",
+    "enabled": true
+  },
+  {
+    "name": "BWK Shop",
+    "url": "https://membersbwk.baliwithkidz.com/shop.php",
+    "prefix": "bwk_shop",
+    "category": "shop",
+    "enabled": true
+  }
+]

@@ -32,24 +32,16 @@ app = FastAPI(title="AI Brain API", version="1.0.0")
 
 # ── Helpers ──────────────────────────────────────────────
 async def send_telegram_message(chat_id: int, text: str):
-    """Send message via Telegram Bot API with Markdown fallback."""
+    """Send message via Telegram Bot API."""
     url = f"{TELEGRAM_API}/sendMessage"
+    payload = {
+        "chat_id": chat_id,
+        "text": text,
+        "parse_mode": "Markdown",
+    }
     try:
         async with httpx.AsyncClient(timeout=30) as client:
-            # Try Markdown first
-            payload = {
-                "chat_id": chat_id,
-                "text": text,
-                "parse_mode": "Markdown",
-            }
             resp = await client.post(url, json=payload)
-            
-            # If Markdown fails, retry as plain text
-            if resp.status_code == 400 and "parse entities" in resp.text:
-                logger.warning("Markdown failed, retrying as plain text")
-                payload.pop("parse_mode")
-                resp = await client.post(url, json=payload)
-            
             if resp.status_code != 200:
                 logger.error(f"Telegram API error: {resp.status_code} - {resp.text}")
     except Exception as e:

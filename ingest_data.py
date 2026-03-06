@@ -158,7 +158,7 @@ def main():
     logger.info(f"Loaded {len(documents)} document(s)")
 
     # Split into chunks
-    from langchain.text_splitter import RecursiveCharacterTextSplitter
+    from langchain_text_splitters import RecursiveCharacterTextSplitter
 
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=config.get("chunk_size", 1000),

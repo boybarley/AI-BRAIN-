@@ -1,6 +1,5 @@
 """
 core_rag.py — Core RAG (Retrieval-Augmented Generation) Engine
-Handles: embeddings, vector search, LLM invocation, re-ranking
 """
 
 import os
@@ -17,20 +16,18 @@ logger = logging.getLogger(__name__)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_PATH = os.path.join(BASE_DIR, "config.yaml")
 
-# ─── System Prompt ──────────────────────────────────────────
-
 SYSTEM_PROMPT = """\
-Anda adalah asisten AI yang sangat membantu dan akurat. Pengetahuan Anda \
-bersumber dari database dokumen dan konten website internal.
+Anda adalah asisten AI untuk **Baliwithkidz** — platform layanan keluarga di Bali.
 
 **Aturan:**
-1. JAWAB HANYA berdasarkan konteks yang diberikan.
-2. Jika jawaban TIDAK ADA dalam konteks, katakan: \
-"Maaf, informasi tersebut tidak ditemukan dalam database saya. \
-Silakan hubungi admin untuk pertanyaan lebih lanjut."
-3. Jika menggunakan informasi dari website, SERTAKAN URL sumber.
-4. Jika dari dokumen, sebutkan nama file.
-5. Jawab dengan ringkas, jelas, dan profesional dalam Bahasa Indonesia.
+1. Jawab berdasarkan konteks yang diberikan di bawah ini.
+2. Jika konteks mengandung informasi yang RELEVAN dengan pertanyaan, WAJIB berikan jawaban. Jangan pernah bilang "tidak ditemukan" jika ada data relevan di konteks.
+3. HANYA jika konteks benar-benar TIDAK RELEVAN sama sekali, katakan: "Maaf, informasi tersebut tidak ditemukan dalam database saya."
+4. Sertakan detail: nama, deskripsi singkat, dan cara menghubungi (WhatsApp/Phone) jika tersedia.
+5. **WAJIB sertakan URL/link detail jika tersedia di konteks** (format: "🔗 Detail: <url>").
+6. Jika ada beberapa hasil, tampilkan dalam format list yang rapi.
+7. Jawab dengan rapi, jelas, dan profesional. Gunakan bahasa yang sama dengan pertanyaan (Indonesia/English).
+8. Jangan mengarang informasi yang tidak ada di konteks.
 
 **Konteks:**
 {context}
@@ -39,20 +36,14 @@ Silakan hubungi admin untuk pertanyaan lebih lanjut."
 {sources}"""
 
 
-# ─── Config ─────────────────────────────────────────────────
-
-def load_config(path: str = None) -> dict:
-    config_file = path or CONFIG_PATH
-    with open(config_file, "r", encoding="utf-8") as f:
+def load_config(path=None):
+    with open(path or CONFIG_PATH, "r", encoding="utf-8") as f:
         return yaml.safe_load(f)
 
 
-# ─── Factory: Embeddings ────────────────────────────────────
-
-def create_embeddings(config: dict):
+def create_embeddings(config):
     provider = config.get("embedding_provider", "ollama")
     model = config.get("embedding_model", "nomic-embed-text")
-    logger.info(f"Creating embeddings: provider={provider}, model={model}")
 
     if provider == "ollama":
         from langchain_ollama import OllamaEmbeddings
@@ -66,23 +57,14 @@ def create_embeddings(config: dict):
             model=model,
             openai_api_key=config.get("embedding_api_key", ""),
         )
-    elif provider == "huggingface":
-        from langchain_community.embeddings import HuggingFaceInferenceAPIEmbeddings
-        return HuggingFaceInferenceAPIEmbeddings(
-            api_key=config.get("embedding_api_key", ""),
-            model_name=model,
-        )
     else:
         raise ValueError(f"Unknown embedding provider: '{provider}'")
 
 
-# ─── Factory: LLM ───────────────────────────────────────────
-
-def create_llm(config: dict):
+def create_llm(config):
     provider = config.get("llm_provider", "ollama")
     model = config.get("llm_model", "llama3")
     temperature = config.get("llm_temperature", 0.3)
-    logger.info(f"Creating LLM: provider={provider}, model={model}")
 
     if provider == "ollama":
         from langchain_ollama import ChatOllama
@@ -104,23 +86,17 @@ def create_llm(config: dict):
         raise ValueError(f"Unknown LLM provider: '{provider}'")
 
 
-# ─── Singleton Cache ────────────────────────────────────────
-
-class _EngineCache:
-    __slots__ = ("config", "embeddings", "vector_store", "llm", "reranker")
-
+class _Cache:
     def __init__(self):
         self.config = None
         self.embeddings = None
         self.vector_store = None
         self.llm = None
-        self.reranker = None
+
+_cache = _Cache()
 
 
-_cache = _EngineCache()
-
-
-def get_config() -> dict:
+def get_config():
     if _cache.config is None:
         _cache.config = load_config()
     return _cache.config
@@ -135,20 +111,13 @@ def get_embeddings():
 def get_vector_store():
     if _cache.vector_store is None:
         config = get_config()
-        vs_path = config.get("vector_store_path", "db/faiss_index")
-        full_path = os.path.join(BASE_DIR, vs_path)
-
-        if not os.path.exists(full_path):
-            logger.warning(f"Vector store not found: {full_path}")
+        vs_path = os.path.join(BASE_DIR, config.get("vector_store_path", "db/faiss_index"))
+        if not os.path.exists(vs_path):
             return None
-
         from langchain_community.vectorstores import FAISS
         _cache.vector_store = FAISS.load_local(
-            full_path,
-            get_embeddings(),
-            allow_dangerous_deserialization=True,
+            vs_path, get_embeddings(), allow_dangerous_deserialization=True,
         )
-        logger.info(f"FAISS loaded: {_cache.vector_store.index.ntotal} vectors")
     return _cache.vector_store
 
 
@@ -158,56 +127,14 @@ def get_llm():
     return _cache.llm
 
 
-def get_reranker():
-    if _cache.reranker is None:
-        try:
-            from sentence_transformers import CrossEncoder
-            model_name = get_config().get(
-                "reranker_model", "cross-encoder/ms-marco-MiniLM-L-6-v2"
-            )
-            _cache.reranker = CrossEncoder(model_name)
-            logger.info(f"Re-ranker loaded: {model_name}")
-        except ImportError:
-            logger.info("sentence-transformers not installed — re-ranking disabled")
-        except Exception as e:
-            logger.warning(f"Failed to load re-ranker: {e}")
-    return _cache.reranker
-
-
 def reload_cache():
-    """Clear all cached objects (call after config change or re-ingest)."""
     global _cache
-    _cache = _EngineCache()
-    logger.info("Engine cache cleared")
+    _cache = _Cache()
 
 
-# ─── Re-ranking ─────────────────────────────────────────────
-
-def rerank_documents(
-    query: str, documents: List[Document], top_k: int = 3
-) -> List[Document]:
-    reranker = get_reranker()
-    if reranker is None:
-        return documents[:top_k]
-    try:
-        pairs = [(query, doc.page_content) for doc in documents]
-        scores = reranker.predict(pairs)
-        scored = sorted(zip(documents, scores), key=lambda x: x[1], reverse=True)
-        return [doc for doc, _ in scored[:top_k]]
-    except Exception as e:
-        logger.error(f"Re-ranking failed: {e}")
-        return documents[:top_k]
-
-
-# ─── Main Query Processing ──────────────────────────────────
-
-def process_query(
-    query: str, conversation_id: Optional[str] = None
-) -> Dict[str, Any]:
+def process_query(query, conversation_id=None):
     config = get_config()
-    logger.info(f"Processing: '{query[:80]}' (cid={conversation_id})")
 
-    # 1. Get vector store
     vector_store = get_vector_store()
     if vector_store is None:
         return {
@@ -216,17 +143,7 @@ def process_query(
             "conversation_id": conversation_id,
         }
 
-    # 2. Similarity search
-    initial_k = config.get("retrieval_top_k", 5)
-    try:
-        docs = vector_store.similarity_search(query, k=initial_k)
-    except Exception as e:
-        logger.error(f"Search failed: {e}")
-        return {
-            "answer": "Terjadi kesalahan saat mencari informasi.",
-            "sources": [],
-            "conversation_id": conversation_id,
-        }
+    docs = vector_store.similarity_search(query, k=config.get("retrieval_top_k", 5))
 
     if not docs:
         return {
@@ -235,14 +152,8 @@ def process_query(
             "conversation_id": conversation_id,
         }
 
-    # 3. Optional re-ranking
-    rerank_top_k = config.get("rerank_top_k", 3)
-    if config.get("use_reranker", False):
-        docs = rerank_documents(query, docs, top_k=rerank_top_k)
-    else:
-        docs = docs[:rerank_top_k]
+    docs = docs[:config.get("rerank_top_k", 3)]
 
-    # 4. Build context
     sources = list({doc.metadata.get("source", "Unknown") for doc in docs})
     context_parts = []
     for doc in docs:
@@ -251,7 +162,6 @@ def process_query(
     context = "\n\n---\n\n".join(context_parts)
     sources_text = "\n".join(f"- {s}" for s in sources)
 
-    # 5. LLM invocation
     prompt = ChatPromptTemplate.from_messages([
         ("system", SYSTEM_PROMPT),
         ("human", "{question}"),

@@ -1,53 +1,134 @@
-# ═══════════════════════════════════════════════════════════
-#  AI Brain — Configuration
-#  Copy to config.yaml and edit values below
-# ═══════════════════════════════════════════════════════════
-
-# ─── Embedding (Ollama local — low RAM usage) ──────────────
-embedding_provider: "ollama"              # ollama | openai | huggingface
-embedding_model: "nomic-embed-text"
-embedding_api_key: ""
-ollama_base_url: "http://localhost:11434"
-
-# ─── LLM Provider ─────────────────────────────────────────
-# Recommended: OpenRouter (cloud) for servers with < 8GB RAM
-# Get your key at: https://openrouter.ai/keys
-llm_provider: "openrouter"               # ollama | openrouter | openai | groq
-llm_model: "google/gemini-2.0-flash-001" # see README for model options
-llm_base_url: "https://openrouter.ai/api/v1"
-llm_api_key: "YOUR_OPENROUTER_API_KEY"
+system:
+  name: AI-BRAIN
+  version: '2.0'
+  language: id
+  debug: false
+  log_level: INFO
+  auto_start: true
+  timezone: Asia/Jakarta
+models:
+  provider: ollama
+  ollama:
+    enabled: true
+    host: http://localhost:11434
+    default_model: mistral
+    embedding_model: nomic-embed-text
+    installed_models:
+    - nomic-embed-text:latest
+    auto_pull: true
+    gpu_layers: -1
+    context_length: 4096
+    temperature: 0.7
+    top_p: 0.9
+    repeat_penalty: 1.1
+  openrouter:
+    enabled: false
+    api_key: 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
+    default_model: arcee-ai/trinity-large-preview:free
+    fallback_model: google/gemma-2-9b-it:free
+    max_tokens: 2048
+    temperature: 0.7
+    budget_limit_daily: 1.0
+    budget_spent_today: 0.0
+  hybrid:
+    strategy: local_first
+    fallback_enabled: true
+    cloud_for_complex_only: true
+    complexity_threshold: 0.7
+rag:
+  enabled: true
+  engine: faiss
+  faiss:
+    index_path: db/faiss_index
+    dimension: 768
+    metric: cosine
+    nprobe: 10
+  chunking:
+    method: recursive
+    chunk_size: 500
+    chunk_overlap: 50
+    min_chunk_size: 100
+  retrieval:
+    top_k: 5
+    score_threshold: 0.3
+    reranking: false
+    context_window: 3
+crawler:
+  enabled: true
+  schedule: daily
+  schedule_time: 02:00
+  max_pages_per_site: 50
+  max_depth: 3
+  timeout: 30
+  delay_between_requests: 1.0
+  user_agent: AI-BRAIN-Crawler/2.0
+  respect_robots_txt: true
+  sites: []
+api:
+  enabled: true
+  host: 0.0.0.0
+  port: 8000
+  cors_origins:
+  - '*'
+  rate_limit: 60
+  auth_enabled: false
+  api_key: ''
+  ssl_enabled: false
+dashboard:
+  enabled: true
+  port: 5000
+  theme: dark
+  refresh_interval: 30
+  show_system_stats: true
+telegram:
+  enabled: false
+  bot_token: ''
+  allowed_users: []
+  admin_users: []
+  webhook_url: ''
+security:
+  encrypt_config: false
+  api_key_rotation_days: 90
+  max_input_length: 10000
+  blocked_words: []
+  rate_limit_per_ip: 30
+backup:
+  enabled: true
+  schedule: weekly
+  keep_last: 5
+  include_data: true
+  include_index: true
+performance:
+  max_workers: 4
+  batch_size: 32
+  cache_enabled: true
+  cache_ttl: 3600
+  max_memory_mb: 2048
+  gpu_memory_fraction: 0.8
+embedding_provider: ollama
+embedding_model: nomic-embed-text
+embedding_api_key: ''
+ollama_base_url: http://localhost:11434
+llm_provider: openrouter
+llm_model: arcee-ai/trinity-large-preview:free
+llm_base_url: https://openrouter.ai/api/v1
+llm_api_key: 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
 llm_temperature: 0.3
 llm_max_tokens: 1024
-
-# ─── Vector Store ──────────────────────────────────────────
-vector_store_path: "db/faiss_index"
-
-# ─── RAG Pipeline ─────────────────────────────────────────
-retrieval_top_k: 5                        # docs to retrieve from FAISS
-rerank_top_k: 3                           # docs after re-ranking
-use_reranker: false                       # set true if RAM > 6GB
-reranker_model: "cross-encoder/ms-marco-MiniLM-L-6-v2"
-
-# ─── Text Splitting ───────────────────────────────────────
+vector_store_path: db/faiss_index
+retrieval_top_k: 5
+rerank_top_k: 3
+use_reranker: false
+reranker_model: cross-encoder/ms-marco-MiniLM-L-6-v2
 chunk_size: 1000
 chunk_overlap: 200
-
-# ─── Celery / Redis ───────────────────────────────────────
-redis_url: "redis://localhost:6379/0"
-
-# ─── Facebook Messenger ───────────────────────────────────
-messenger_verify_token: "YOUR_VERIFY_TOKEN"
-messenger_page_access_token: "YOUR_PAGE_ACCESS_TOKEN"
-messenger_app_secret: ""
-
-# ─── Telegram Bot ─────────────────────────────────────────
-telegram_bot_token: "YOUR_TELEGRAM_BOT_TOKEN"
-
-# ─── WhatsApp Business ────────────────────────────────────
-whatsapp_verify_token: "YOUR_WHATSAPP_VERIFY_TOKEN"
-whatsapp_api_token: "YOUR_WHATSAPP_API_TOKEN"
-whatsapp_phone_number_id: "YOUR_PHONE_NUMBER_ID"
-
-# ─── Server ───────────────────────────────────────────────
-server_host: "0.0.0.0"
+redis_url: redis://localhost:6379/0
+messenger_verify_token: YOUR_VERIFY_TOKEN
+messenger_page_access_token: YOUR_PAGE_ACCESS_TOKEN
+messenger_app_secret: ''
+telegram_bot_token: 8729831300:AAHF7qZciup9YjT05BvO3fkLVrGtxh110iE
+whatsapp_verify_token: YOUR_WHATSAPP_VERIFY_TOKEN
+whatsapp_api_token: YOUR_WHATSAPP_API_TOKEN
+whatsapp_phone_number_id: YOUR_PHONE_NUMBER_ID
+server_host: 0.0.0.0
 server_port: 5000

@@ -1,0 +1,75 @@
+{
+  "crawl_sites": [
+    {
+      "name": "BWK Nanny",
+      "url": "https://membersbwk.baliwithkidz.com/nanny.php",
+      "prefix": "bwk_nanny",
+      "category": "nanny",
+      "enabled": true
+    },
+    {
+      "name": "BWK Driver",
+      "url": "https://membersbwk.baliwithkidz.com/car.php",
+      "prefix": "bwk_driver",
+      "category": "driver",
+      "enabled": true
+    },
+    {
+      "name": "BWK Villa",
+      "url": "https://membersbwk.baliwithkidz.com/villa.php",
+      "prefix": "bwk_villa",
+      "category": "villa",
+      "enabled": true
+    },
+    {
+      "name": "BWK Activities",
+      "url": "https://membersbwk.baliwithkidz.com/activities.php",
+      "prefix": "bwk_activity",
+      "category": "activities",
+      "enabled": true
+    },
+    {
+      "name": "BWK Medical",
+      "url": "https://membersbwk.baliwithkidz.com/medical.php",
+      "prefix": "bwk_medical",
+      "category": "medical",
+      "enabled": true
+    },
+    {
+      "name": "BWK School",
+      "url": "https://membersbwk.baliwithkidz.com/school.php",
+      "prefix": "bwk_school",
+      "category": "school",
+      "enabled": true
+    },
+    {
+      "name": "BWK Restaurant",
+      "url": "https://membersbwk.baliwithkidz.com/restaurant.php",
+      "prefix": "bwk_restaurant",
+      "category": "restaurant",
+      "enabled": true
+    },
+    {
+      "name": "BWK Playground",
+      "url": "https://membersbwk.baliwithkidz.com/playground.php",
+      "prefix": "bwk_playground",
+      "category": "playground",
+      "enabled": true
+    },
+    {
+      "name": "BWK Shop",
+      "url": "https://membersbwk.baliwithkidz.com/shop.php",
+      "prefix": "bwk_shop",
+      "category": "shop",
+      "enabled": true
+    }
+  ],
+  "system_prompt": "You are the AI assistant for BaliWithKidz (BWK), a family travel platform for Bali.\n\nRULES:\n1. Answer based ONLY on the provided context. Do not make up information.\n2. Respond in the SAME LANGUAGE as the user's question (Indonesian or English).\n3. For each vendor/service, provide:\n   - Name (as heading)\n   - Brief description (1-2 sentences max)\n   - Contact info (WhatsApp, Phone) if available\n   - Direct link to BWK detail page\n4. Keep descriptions SHORT - users will click the link for full details.\n5. If the context doesn't contain relevant info, say:\n   \"Maaf, saya tidak menemukan informasi tentang itu. Silakan kunjungi https://baliwithkidz.com\"\n6. Format links as clickable markdown: [Text](URL)\n7. Always include the BWK detail page link when available.\n8. Be friendly, helpful, and concise.",
+  "llm_model": "llama-3.3-70b-versatile",
+  "temperature": 0.3,
+  "max_tokens": 2048,
+  "chunk_size": 1000,
+  "chunk_overlap": 200,
+  "top_k_results": 5,
+  "crawl_delay": 2
+}
